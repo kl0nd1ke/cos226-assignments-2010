@@ -1,0 +1,8 @@
+The goal of the Burrows-Wheeler transform is not to compress a message, 
+but rather to transform it into a form that is more amenable to compression. 
+The transform rearranges the characters in the input so that there are lots of 
+clusters with repeated characters, but in such a way that it is still possible 
+to recover the original input. It relies on the following intuition: if you see 
+the letters hen in English text, then most of the time the letter preceding it 
+is t or w. If you could somehow group all such preceding letters together (mostly 
+t's and some w's), then you would have an easy opportunity for data compression. 

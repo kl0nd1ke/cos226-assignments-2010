@@ -1,0 +1,171 @@
+COS 226 Programming Assignment
+Burrows-Wheeler Data Compression Algorithm
+
+Implement the Burrows-Wheeler data compression algorithm. This revolutionary algorithm outcompresses gzip and PKZIP, is relatively easy to implement, and is not protected by any patents. It forms the basis of the Unix compression utililty bzip2.
+
+The Burrows-Wheeler compression algorithm consists of three different algorithmic components, which are applied in succession:
+
+   1. Burrows-Wheeler transform. Given a typical English text file, transform it into a text file in which sequences of the same character occur near each other many times.
+
+   2. Move-to-front encoding. Given a text file in which sequences of the same character occur near each other many times, convert it into a text file in which certain characters appear more frequently than others.
+
+   3. Huffman compression. Given a text file in which certain characters appear more frequently than others, compress it by encoding freqently occuring characters with short codewords and rare ones with long codewords. 
+
+The only step that compresses the message is the final step. The final step is particularly effective because the first two steps result in a text file in which certain characters appear much more frequently than others. To expand a message, apply the inverse operations in reverse order: first apply the Huffman expansion, then the move-to-front decoding, and finally the inverse Burrows-Wheeler transform.
+
+Binary input and binary output. To enable that your programs work with binary data, you will use the libraries BinaryStdIn.java and BinaryStdOut.java described in lecture and Algorithms 4. To display the binary output, you can use HexDump.java, which takes a command-line argument N, reads bytes from standard input and writes them to standard output in hexadecimal, N per line.
+
+    % more abra.txt
+    ABRACADABRA!
+
+    % java HexDump 16 < abra.txt
+    41 42 52 41 43 41 44 41 42 52 41 21
+    12 bytes
+
+Note that 'A' is 41 (hex) in ASCII.
+
+Huffman encoding and decoding. Huffman.java implements the classic Huffman compression and expansion algorithms from lecture and Algorithms 4.
+
+    % java Huffman - < abra.txt | java HexDump 16
+    50 4a 22 43 43 54 a8 40 00 00 01 8f 96 8f 94
+    15 bytes
+
+    % java Huffman - < abra.txt | java Huffman +
+    ABRACADABRA!
+
+Move-to-front encoding and decoding. The main idea of move-to-front encoding is to maintain an ordered sequence of all of the characters, and repeatedly read in characters from the input message, print out the position in which that character appears, and move that character to the front. As a simple example, if the initial ordering over a 6-character alphabet is A B C D E F, and we want to encode the input CAAABCCCACCF, then we would update the move-to-front sequences as follows:
+
+    move-to-front    in   out
+    -------------    ---  ---
+     A B C D E F      C    2 
+     C A B D E F      A    1
+     A C B D E F      A    0
+     A C B D E F      A    0
+     A C B D E F      B    2
+     B A C D E F      C    2
+     C B A D E F      C    0
+     C B A D E F      C    0
+     C B A D E F      A    2
+     A C B D E F      C    1
+     C A B D E F      C    0
+     C A B D E F      F    5
+     F C A B D E  
+
+If the same character occurs next to each other many times in the input, then many of the output values will be small integers, such as 0, 1, and 2. The extremely high frequency of certain characters makes an ideal scenario for Huffman coding.
+
+    * Move-to-front encoding. Your task is to maintain an ordered sequence of the 256 extended ASCII characters. Initialize the sequence by making the ith character in the sequence equal to the ith extended ASCII character. Now, read in each 8-bit character ch from standard input one at a time, output the index in the array where ch appears, and move ch to the front.
+
+          % java MoveToFront - < abra.txt | java HexDump 16
+          41 42 52 02 44 01 45 01 04 04 02 26
+          12 bytes
+
+    * Move-to-front decoding. Initialize an ordered sequence of 256 characters, where extended ASCII character i appears ith in the sequence. Now, read in each 8-bit character i (but treat it as an integer between 0 and 255) from standard input one at a time, write the ith character in the sequence, and move that character to the front. Check that the decoder recovers any encoded message.
+
+          % java MoveToFront - < abra.txt | java MoveToFront +
+          ABRACADABRA!
+
+Name your program MoveToFront.java and organize it using the following API:
+
+    public class MoveToFront {
+        // apply move-to-front encoding, reading from standard input and writing to standard output
+        public static void encode()
+
+        // apply move-to-front decoding, reading from standard input and writing to standard output
+        public static void decode()
+
+        // if args[0] is '-', apply move-to-front encoding
+        // if args[0] is '+', apply move-to-front decoding
+        public static void main(String[] args)
+    }
+
+Burrows-Wheeler transform. The goal of the Burrows-Wheeler transform is not to compress a message, but rather to transform it into a form that is more amenable to compression. The transform rearranges the characters in the input so that there are lots of clusters with repeated characters, but in such a way that it is still possible to recover the original input. It relies on the following intuition: if you see the letters hen in English text, then most of the time the letter preceding it is t or w. If you could somehow group all such preceding letters together (mostly t's and some w's), then you would have an easy opportunity for data compression.
+
+    * Burrows-Wheeler encoding. Treat the input string as a cyclic string and sort the N suffixes of length N. Here is how it works for the text message "ABRACADABRA!". The 12 original suffixes are ABRACADABRA!, BRACADABRA!A, ..., !ABRACADABRA, and appear in rows 0 through 11 of the table below. Sorting these 12 strings yields the sorted suffixes. Ignore the next[] array for now - you will only need it for decoding.
+
+           i     Original Suffixes          Sorted Suffixes       t     next
+          --    -----------------------     -----------------------     ----
+           0    A B R A C A D A B R A !     ! A B R A C A D A B R A      3
+           1    B R A C A D A B R A ! A     A ! A B R A C A D A B R      0
+           2    R A C A D A B R A ! A B     A B R A ! A B R A C A D      6
+          *3    A C A D A B R A ! A B R     A B R A C A D A B R A !      7
+           4    C A D A B R A ! A B R A     A C A D A B R A ! A B R      8
+           5    A D A B R A ! A B R A C     A D A B R A ! A B R A C      9
+           6    D A B R A ! A B R A C A     B R A ! A B R A C A D A     10
+           7    A B R A ! A B R A C A D     B R A C A D A B R A ! A     11
+           8    B R A ! A B R A C A D A     C A D A B R A ! A B R A      5
+           9    R A ! A B R A C A D A B     D A B R A ! A B R A C A      2
+          10    A ! A B R A C A D A B R     R A ! A B R A C A D A B      1   
+          11    ! A B R A C A D A B R A     R A C A D A B R A ! A B      4  
+
+      The Burrows Wheeler transform t[] is the last column in the suffix sorted list, preceded by the row number where the original string ABRACADABRA! ends up.
+
+          3
+          ARD!RCAAAABB
+
+      Notice how there are 4 consecutive As and 2 consecutive Bs - this makes the file easier to compress.
+
+          % java BurrowsWheeler - < abra.txt | java HexDump 16
+          00 00 00 03 41 52 44 21 52 43 41 41 41 41 42 42
+          16 bytes
+
+      Note that the integer 3 is represented using 4 bytes (00 00 00 03). The character 'A' is represented by hex 41, the character 'R' by 52, and so forth.
+
+    * Burrows-Wheeler decoder. Now we describe how to undo the Burrows-Wheeler transform and recover the original message. If the jth original suffix (original string, shifted j characters to the left) is the ith row in the sorted order, then next[i] records the row in the sorted order where the (j+1)st original suffix appears. For example, the 0th original suffix ABRACDABRA! is row 3 of the sorted order; since next[3] = 7, the next original suffix BRACADABRA!A is row 7 of the sorted order. Knowing the array next[] makes decoding easy, as with the following Java code:
+
+          int[] next = { 3, 0, 6, 7, 8, 9, 10, 11, 5, 2, 1, 4 };
+          int N = next.length;
+          String t = "ARD!RCAAAABB";
+          int i = 3;
+          for (int count = 0; count < N; count++) {
+            i = next[i];
+            System.out.write(t.charAt(i));
+          }
+
+      Amazingly, the information contained in the Burrows-Wheeler transform is enough to reconstruct next[], and hence the original message! Here's how. First, we know all of the characters in the original message, even if they're permuted in the wrong order. This enables us to reconstruct the first column in the suffix sorted list by sorting the characters. Since 'C' only occurs once in the message and the suffixes are formed using cyclic wrap-around, we can deduce that next[8] = 5. Similarly, 'D' and '!' each occur only once, so we can deduce that next[9] = 2 and next[0] = 3.
+
+           i      Sorted Suffixes     t      next
+          --    -----------------------      ----
+           0    ! ? ? ? ? ? ? ? ? ? ? A        3
+           1    A ? ? ? ? ? ? ? ? ? ? R
+           2    A ? ? ? ? ? ? ? ? ? ? D
+          *3    A ? ? ? ? ? ? ? ? ? ? !
+           4    A ? ? ? ? ? ? ? ? ? ? R 
+           5    A ? ? ? ? ? ? ? ? ? ? C
+           6    B ? ? ? ? ? ? ? ? ? ? A
+           7    B ? ? ? ? ? ? ? ? ? ? A
+           8    C ? ? ? ? ? ? ? ? ? ? A        5
+           9    D ? ? ? ? ? ? ? ? ? ? A        2
+          10    R ? ? ? ? ? ? ? ? ? ? B
+          11    R ? ? ? ? ? ? ? ? ? ? B
+
+      However, since 'R' appears twice, it may seem ambiguous whether next[10] = 1 and next[11] = 4, or whether next[10] = 4 and next[11] = 1. Here's the key rule that resolves the ambiguity:
+
+          If sorted row i and j both start with the same character and i < j, then next[i] < next[j]. 
+
+      This rule implies next[10] = 1 and next[11] = 4. Why is this rule valid? The rows are sorted so row 10 is lexicographically less than row 11. Thus the ten unknown characters in row 10 must be less than the the ten unknown characters in row 11 (since both start with 'R'). We also know that between the two rows that end with 'R', row 1 is less than row 4. But, the ten unknown characters in row 10 and 11 are precisely the first ten characters in rows 1 and 4. Thus, next[10] = 1 and next[11] = 4 or this would contradict the fact that the suffixes are sorted.
+
+      Check that the decoder recovers any encoded message.
+
+          % java BurrowsWheeler - < abra.txt | java BurrowsWheeler +
+          ABRACADABRA!
+
+Name your program BurrowsWheeler.java and organize it using the following API:
+
+    public class BurrowsWheeler {
+        // apply Burrows-Wheeler encoding, reading from standard input and writing to standard output
+        public static void encode()
+
+        // apply Burrows-Wheeler decoding, reading from standard input and writing to standard output
+        public static void decode()
+
+        // if args[0] is '-', apply Burrows-Wheeler encoding
+        // if args[0] is '+', apply Burrows-Wheeler decoding
+        public static void main(String[] args)
+    }
+
+Analysis. Once you have MoveToFront.java and BurrowsWheeler.java working, compress some of these text files. Compression consists of BurrowsWheeler, MoveToFront and Huffman all together. Also try it on some binary files. Calculate the compression ratio achieved for each file. Also, report the time to compress and decompress each file. Finally, determine the order of growth of the running time of each of your encoders and decoders.
+
+Deliverables. Submit MoveToFront.java and BurrowsWheeler.java along with any other helper files needed to run your program (excluding those in algs4.jar and stdlib.jar). Also submit a readme.txt and answer all questions.
+
+This assignment was developed by Kevin Wayne.
+Copyright © 2004.

@@ -1,0 +1,6 @@
+5
+horse
+zebra
+cat
+bear
+table

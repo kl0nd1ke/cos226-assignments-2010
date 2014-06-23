@@ -1,2 +1,2 @@
-cos-226-assignments-2010
+cos226-assignments-2010
 ========================
